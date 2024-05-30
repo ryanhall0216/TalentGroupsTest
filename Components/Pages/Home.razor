@@ -1,0 +1,233 @@
+﻿@page "/"
+@using TalentGroupsTest.Data.Services.Interface
+@using System.ComponentModel.DataAnnotations
+@using TalentGroupsTest.Models
+@using TalentGroupsTest.Components.Shared
+@using TalentGroupsTest.Data.Services;
+
+
+@inject IJSRuntime JsRuntime
+@inject IUser _userService
+@rendermode InteractiveServer
+
+<PageTitle>Home</PageTitle>
+
+
+<div class="d-flex justify-content-between align-items-center flex-wrap pb-3">
+    <h1 class="fs-3">User List</h1>
+    <div class="d-flex" role="search">
+        <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search" @bind-value="SearchQury">
+        <button class="btn btn-outline-success d-flex align-items-center" type="submit" @onclick="HandleSearch"><i class='bx bx-search'></i></button>
+    </div>
+    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#formModal" @onclick="HandleCreate">
+        Add New User
+    </button>
+</div>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th scope="col">#</th>
+            <th scope="col">First Name</th>
+            <th scope="col">Last Name</th>
+            <th scope="col">DOB</th>
+            <th scope="col">Email</th>
+            <th scope="col">Address</th>
+            <th scope="col">Created Date</th>
+            <th scope="col">Updated Date</th>
+            <th scope="col">Actions</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var (item, index) in UserList.Select((user, index) => (user, index)))
+        {
+            <tr>
+                <th scope="row">@(index + 1)</th>
+                <td>@item.FirstName</td>
+                <td>@item.LastName</td>
+                <td>@item.DOB.ToString("MM/dd/yyyy")</td>
+                <td>@item.EmailAddress</td>
+                <td>@item.Address</td>
+                <td>@item.DateCreated</td>
+                <td>@item.DateUpdated</td>
+                <td>
+                    <button type="button" class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#formModal" @onclick="() => HandleEdit(item)">
+                        <i class='bx bx-edit'></i>
+                    </button>
+                    <button type="button" class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#confirmModal" @onclick="() => { UserData = item; }">
+                        <i class='bx bxs-trash'></i>
+                    </button>
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<!-- Form Modal -->
+<div class="modal fade" id="formModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <EditForm EditContext="@formContext"
+                      OnValidSubmit="HandleSubmit"
+                      Context="FormContext">
+                <DataAnnotationsValidator />
+                <div class="modal-header">
+                    <h2 class="modal-title fs-5" id="formModalLabel">
+                        @(isEditModal ? "Edit User" : "Add New User")
+                    </h2>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body row g-3">
+                    <div class="col-md-6">
+                        <label class="form-label">First name</label>
+                        <input type="text" class="form-control" @bind-value="UserData.FirstName" />
+                        <ValidationMessage For="@(() => UserData.FirstName)" />
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Last name</label>
+                        <input type="text" class="form-control" @bind-value="UserData.LastName" />
+                        <ValidationMessage For="@(() => UserData.LastName)" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">DOB</label>
+                        <input type="date" class="form-control" @bind-value="UserData.DOB" />
+                        <ValidationMessage For="@(() => UserData.DOB)" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Email</label>
+                        <input type="email" class="form-control" @bind-value="UserData.EmailAddress" />
+                        <ValidationMessage For="@(() => UserData.EmailAddress)" />
+                    </div>
+                    <div class="col-md-12">
+                        <label class="form-label">Address</label>
+                        <input type="text" class="form-control" @bind-value="UserData.Address" />
+                        <ValidationMessage For="@(() => UserData.Address)" />
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                    @{
+                        if (!isLoading)
+                        {
+                            <button type="submit" class="btn btn-primary">
+                                @(isEditModal ? "Save changes" : "Submit")
+                            </button>
+                        }
+                        else
+                        {
+                            <LoadingButton />
+                        }
+                    }
+                </div>
+            </EditForm>
+        </div>
+    </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal fade" id="confirmModal" tabindex="-1" aria-labelledby="confirmModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h1 class="modal-title fs-5" id="confirmModalLabel">Confirm</h1>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                Are you really going to delete?
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                @{
+                    if (!isLoading)
+                    {
+                        <button type="button" class="btn btn-primary" @onclick="HandleDelete">Delete</button>
+                    }
+                    else
+                    {
+                        <LoadingButton />
+                    }
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    bool isEditModal { get; set; } = false;
+    bool isLoading { get; set; } = false;
+    private EditContext formContext;
+    public User UserData = new User() { };
+    public IEnumerable<User> UserList { get; set; } = new List<User>() { };
+    public string SearchQury { get; set; } = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        formContext = new(UserData);
+        await LoadUserList();
+    }
+    public async Task LoadUserList()
+    {
+        UserList = await _userService.GetUsersAsync();
+
+        UserList = UserList.ToList();
+
+    }
+    public async Task HandleSubmit()
+    {
+        isLoading = true;
+        if (isEditModal)
+        {
+            // Edit user
+            await _userService.UpdateUserAsync(UserData);
+        }
+        else
+        {
+            // Add user
+            await _userService.AddUserAsync(UserData);
+        }
+
+        isLoading = false;
+        await Task.Delay(1000);
+        await JsRuntime.InvokeVoidAsync("hideModal", "formModal");
+        await LoadUserList();
+    }
+
+    public async Task HandleSearch()
+    {
+        UserList = await _userService.SearchUserAsync(SearchQury);
+    }
+
+    public void HandleEdit(User user)
+    {
+        isEditModal = true;
+        UserData = new User
+            {
+                Id = user.Id,
+                FirstName = user.FirstName,
+                LastName = user.LastName,
+                DOB = user.DOB,
+                EmailAddress = user.EmailAddress,
+                Address = user.Address,
+                DateCreated = user.DateCreated
+            };
+
+        formContext = new EditContext(UserData);
+    }
+
+    public async Task HandleDelete()
+    {
+        isLoading = true;
+        await _userService.DeleteUserAsync(UserData);
+        await LoadUserList();
+        await Task.Delay(1000);
+        isLoading = false;
+        await JsRuntime.InvokeVoidAsync("hideModal", "confirmModal");
+    }
+
+    public void HandleCreate()
+    {
+        isEditModal = false;
+        UserData = new User() { };
+        formContext = new EditContext(UserData);
+    }
+}
